@@ -1,6 +1,8 @@
 add_library(geomAlgoLib
-    example.hpp
-    example.cpp
+    #example.hpp
+    #example.cpp
+    myAlgo.hpp
+    myAlgo.cpp
     io.hpp
     io.cpp
     measures.hpp
