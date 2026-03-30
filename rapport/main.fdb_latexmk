@@ -1,5 +1,5 @@
 # Fdb version 4
-["pdflatex"] 1774899441.26344 "/Users/nathan/Documents/Scolarite/ISIMA/ZZ3/blender/geom-algo-segmentation TP4/rapport/main.tex" "main.pdf" "main" 1774899442.52077 0
+["pdflatex"] 1774899962.87695 "/Users/nathan/Documents/Scolarite/ISIMA/ZZ3/blender/geom-algo-segmentation TP4/rapport/main.tex" "main.pdf" "main" 1774899964.19831 0
   "../output/renders/cube-bruit-0.png" 1774897611.85959 121326 3770406f94509d98926e59b3ebcf7bc8 ""
   "../output/renders/cube-bruit-0_LissageFacteurDiffusion_5_0.500000.png" 1774897574.43428 74415 ae994e631041090c00d9be2ba89909d1 ""
   "../output/renders/cube-bruit-0_LissageLaplacienPondere_5_cotangentes.png" 1774897603.67186 87257 5f8e29b37c5d5ce2713e0f21144e2142 ""
@@ -7,7 +7,7 @@
   "../output/renders/cube-bruit-0_LissageLaplacien_5.png" 1774897572.58966 87257 5f8e29b37c5d5ce2713e0f21144e2142 ""
   "../output/renders/cube-bruit-0_LissageTaubin_40_0.330000_-0.340000.png" 1774897602.31118 77685 b7147e91027659b45f145da8b72d04a9 ""
   "../output/renders/cube-bruit-0_LissageTaubin_5_0.330000_-0.340000.png" 1774897582.63618 99384 03ab7bdb3add558994786568de4dbe13 ""
-  "/Users/nathan/Documents/Scolarite/ISIMA/ZZ3/blender/geom-algo-segmentation TP4/rapport/main.tex" 1774899439.65524 20264 df11bea3799889a8061e0558c4743e98 ""
+  "/Users/nathan/Documents/Scolarite/ISIMA/ZZ3/blender/geom-algo-segmentation TP4/rapport/main.tex" 1774899962.62355 20310 fd33f21b866e4742d5838468759553de ""
   "/usr/local/texlive/2026/texmf-dist/fonts/enc/dvips/cm-super/cm-super-t1.enc" 1136849721 2971 def0b6c1f0b107b3b936def894055589 ""
   "/usr/local/texlive/2026/texmf-dist/fonts/enc/dvips/cm-super/cm-super-ts1.enc" 1136849721 2900 1537cc8184ad1792082cd229ecc269f4 ""
   "/usr/local/texlive/2026/texmf-dist/fonts/map/fontname/texfonts.map" 1577235249 3524 cb3e574dea2d1052e39280babc910dc8 ""
@@ -215,11 +215,11 @@
   "/usr/local/texlive/2026/texmf-var/fonts/map/pdftex/updmap/pdftex.map" 1774367526 5541377 04880c840ca220163a28f1a3af0ee662 ""
   "/usr/local/texlive/2026/texmf-var/web2c/pdftex/pdflatex.fmt" 1774367413 3636762 4728048781f587b1b2c62fb708299e72 ""
   "/usr/local/texlive/2026/texmf.cnf" 1772409725 577 648cd9f92f9c0eac486f4c71c85cfbbe ""
-  "main.aux" 1774899442.3305 4240 0bc0962099124c5ae9a58212d861c031 "pdflatex"
-  "main.lof" 1774899442.33245 495 5f133b6af9c671fa177f794b6e5319eb "pdflatex"
-  "main.out" 1774899442.33211 2544 e2d2aaaad24367a76cade44a8c37d666 "pdflatex"
-  "main.tex" 1774899439.65524 20264 df11bea3799889a8061e0558c4743e98 ""
-  "main.toc" 1774899442.33241 1330 949869c5ed5c297bf09a80091124b5d4 "pdflatex"
+  "main.aux" 1774899964.00997 4240 0bc0962099124c5ae9a58212d861c031 "pdflatex"
+  "main.lof" 1774899964.01171 495 5f133b6af9c671fa177f794b6e5319eb "pdflatex"
+  "main.out" 1774899964.01141 2544 e2d2aaaad24367a76cade44a8c37d666 "pdflatex"
+  "main.tex" 1774899962.62355 20310 fd33f21b866e4742d5838468759553de ""
+  "main.toc" 1774899964.01168 1330 949869c5ed5c297bf09a80091124b5d4 "pdflatex"
   (generated)
   "main.aux"
   "main.lof"

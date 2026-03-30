@@ -343,9 +343,14 @@ En conclusion, si les méthodes de base (Laplacien simple et diffusion) sont ais
 
 \section{Conclusion}
 
-Ce TP nous a permis de développer une compréhension concrète des opérateurs de lissage géométrique en 3D. L'utilisation de CGAL et de ses structures de données en demi-arêtes (\textit{Halfedge Data Structure}) a facilité le parcours topologique des voisinages, étape critique pour l'implémentation d'algorithmes locaux. 
+Ce TP nous a permis d'explorer concrètement les différentes approches de lissage de maillages 3D, depuis les méthodes les plus intuitives jusqu'à des méthodes plus élaborées.
+L'utilisation de CGAL et de sa structure en demi-arêtes s'est avérée particulièrement adaptée à ce type de travail, en rendant le parcours topologique du voisinage de chaque sommet
+à la fois simple et efficace.
 
-Nous avons pu voir que des approches mathématiquement simples comme le centroïde montrent très vite leurs limites géométriques (rétrécissement, perte de détails). Le passage à des modèles plus robustes, qu'il s'agisse de la compensation de volume par la méthode de Taubin ou de l'approximation de l'opérateur de Laplace-Beltrami par les cotangentes, illustre parfaitement la complexité et la richesse du traitement de la géométrie discrète. Les outils ainsi implémentés forment une base solide pour des processus plus avancés, notamment la segmentation ou la déformation de maillages que nous aborderons par la suite.
+Il n'existe pas de méthode universellement meilleure, chaque algorithme présente des compromis entre facilité d'implémentation, qualité du lissage
+et préservation de la géométrie originelle. Le lissage laplacien simple est immédiat à mettre en œuvre mais destructeur sur le long terme. Le facteur de diffusion apporte un premier contrôle
+sans résoudre le problème de fond. La méthode de Taubin constitue une réponse efficace au phénomène de rétrécissement, tandis que la pondération par cotangentes illustre
+l'importance d'adapter la méthode à la nature de la géométrie du maillage traité.
 
     
 \end{document}
