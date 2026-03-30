@@ -1,334 +1,209 @@
-/**
- * @file example.hpp
- * @brief Mesh segmentation and analysis library header
- * 
- * Public interface for geometric computation on CGAL polyhedron meshes:
- *  - Surface properties (area, genus, normals)
- *  - Face segmentation by geometric criteria
- *  - Colored OFF export for visualization
- *
- * @author ISIMA ZZ3 - TP3 Segmentation
- * @date 2026-02-16
- */
-
 #pragma once
 
 #include "types.hpp"
+#include "io.hpp"
 
 #include <array>
 #include <map>
 #include <string>
+#include <vector>
+#include <functional>
+#include "myOldAlgo.hpp"
+
+#define PI 3.14159265358979323846
 
 namespace geomAlgoLib
 {
 
-//==============================================================================
-// SECTION 1: DATA STRUCTURES
-//==============================================================================
+using Epick   = CGAL::Epick;
+using Vector3 = CGAL::Vector_3<Epick>;
+using Point3  = CGAL::Point_3<Epick>;
 
-/**
- * @brief RGB color representation with utility operations.
- */
-struct Color {
-    double r;  ///< Red component [0, 1]
-    double g;  ///< Green component [0, 1]
-    double b;  ///< Blue component [0, 1]
-
-    /// Convert to std::array for serialization
-    std::array<double, 3> to_array() const { return {r, g, b}; }
-    
-    /// Scalar multiplication for brightness adjustment
-    std::array<double, 3> operator*(const double scalar) const { 
-        return {r * scalar, g * scalar, b * scalar}; 
-    }
-    
-    /// Color addition for blending
-    const Color operator+(std::array<double, 3> other) const { 
-        return {r + other[0], g + other[1], b + other[2]}; 
-    }
-};
-
-/**
- * @brief Container for multiple boolean tags and associated colors per face.
- * 
- * Allows a single face to carry multiple classification tags simultaneously
- * (e.g., "Grande" AND "Plane"), each with its own visualization color.
- */
-struct TagMaps
+class MeshUtils
 {
-    std::map<std::string, bool> tags;    ///< Tag name -> presence flag
-    std::map<std::string, Color> colors; ///< Tag name -> display color
+    public:
+
+        static int getNumberOfNeighbours(VertexCstIt vertex);
+        static Vector3 getCentroid(VertexCstIt vertex, const Mesh& mesh);
+        static Point3 applyTransformOn(VertexCstIt vertex, const std::map<VertexCstIt,Vector3>& trans);
+
+        template<typename Func, typename... Args>
+        static auto applyOnAllPoints(const Mesh& mesh, Func&& func, Args&&... args)
+        -> std::map<VertexCstIt, decltype(func(std::declval<VertexCstIt&>(), std::declval<Args>()...))>
+        {
+            using RetT = decltype(func(std::declval<VertexCstIt&>(), std::declval<Args>()...));
+            std::map<VertexCstIt, RetT> results;
+            for (auto vit = mesh.vertices_begin(); vit != mesh.vertices_end(); ++vit) {
+                results[vit] = func(vit, std::forward<Args>(args)...);
+            }
+            return results;
+        }
+
+        template<typename DistFunc>
+        static std::map<VertexCstIt, double> computeWeightCentroid(VertexCstIt vertex, DistFunc dist_func)
+        {
+            std::map<VertexCstIt, double> weights;
+
+            Mesh::Halfedge_around_vertex_const_circulator h   = vertex->vertex_begin();
+            Mesh::Halfedge_around_vertex_const_circulator end = h;
+            if (h == nullptr) return weights;
+
+            double sum_weights = 0.0;
+
+            do {
+                VertexCstIt neighbor = h->opposite()->vertex();
+                double w = dist_func(vertex, neighbor);
+                weights[neighbor] = w;
+                sum_weights += w;
+                ++h;
+            } while (h != end);
+
+            for (auto& [vit, w] : weights) {
+                if (!std::isfinite(sum_weights) || sum_weights == 0.0) {
+                    w = 1.0 / weights.size();
+                } else {
+                    w /= sum_weights;
+                }
+                w = std::clamp(w, 0.0, 1.0);  
+            }
+
+
+            return weights;
+        }
+
 };
 
-//==============================================================================
-// SECTION 2: COLOR CONSTANTS
-//==============================================================================
+class Lissage
+{
+    private:
+        Mesh mesh;                             
+        std::map<std::string, Mesh> mesh_map; 
 
-inline Color RED     = {1., 0., 0.};
-inline Color GREEN   = {0., 1., 0.};
-inline Color BLUE    = {0., 0., 1.};
-inline Color YELLOW  = {1., 1., 0.};
-inline Color CYAN    = {0., 1., 1.};
-inline Color MAGENTA = {1., 0., 1.};
-inline Color WHITE   = {1., 1., 1.};
-inline Color BLACK   = {0., 0., 0.};
+    public:
+        Lissage(std::string meshPath);
 
-/// String-to-color lookup for tag color assignment
-inline std::map<std::string, Color> colorDictionary = {
-    {"RED",     RED},
-    {"GREEN",   GREEN},
-    {"BLUE",    BLUE},
-    {"YELLOW",  YELLOW},
-    {"CYAN",    CYAN},
-    {"MAGENTA", MAGENTA},
-    {"WHITE",   WHITE},
-    {"BLACK",   BLACK}
+        void LissageLaplacien(int iterations, int depth, std::string name);
+        void LissageFacteurDiffusion(int iterations, int depth, std::string name, double diffusion_factor);
+        void LissageTaubin(int iterations, int depth, std::string name, double labda, double mu);
+
+        const Mesh& getMesh() const;
+        Mesh& getMeshMap(std::string key);
+        const std::map<std::string, Mesh>& getMeshMap() const;
+
+        void setMeshMap(const std::map<std::string, Mesh>& map);
+        void setMesh(const Mesh& m);
+
+
+        template<typename DistFunc>
+        void LissageLaplacienPondere(int iterations, int depth, std::string name, DistFunc dist_func)
+        {
+            Mesh working_mesh = mesh;
+
+            for (int iter = 0; iter < iterations; ++iter)
+            {
+                std::map<VertexCstIt, Vector3> weighted_centroids;
+
+                for (auto vit = working_mesh.vertices_begin(); vit != working_mesh.vertices_end(); ++vit) {
+                    auto weights = MeshUtils::computeWeightCentroid(vit, dist_func);
+
+                    double x = 0, y = 0, z = 0;
+                    for (auto& [neighbor, w] : weights) {
+                        auto p = neighbor->point();
+                        x += w * CGAL::to_double(p.x());
+                        y += w * CGAL::to_double(p.y());
+                        z += w * CGAL::to_double(p.z());
+                    }
+
+                    auto vp = vit->point();
+                    weighted_centroids[vit] = Vector3(
+                        x - CGAL::to_double(vp.x()),
+                        y - CGAL::to_double(vp.y()),
+                        z - CGAL::to_double(vp.z())
+                    );
+                }
+
+                for (auto vit = working_mesh.vertices_begin(); vit != working_mesh.vertices_end(); ++vit) {
+                    auto it = weighted_centroids.find(vit);
+                    if (it == weighted_centroids.end()) continue;
+                    auto p = vit->point();
+                    vit->point() = Point3(
+                        CGAL::to_double(p.x()) + CGAL::to_double(it->second.x()),
+                        CGAL::to_double(p.y()) + CGAL::to_double(it->second.y()),
+                        CGAL::to_double(p.z()) + CGAL::to_double(it->second.z())
+                    );
+                }
+            }
+
+            mesh_map[name] = working_mesh;
+        }
+        
 };
 
-//==============================================================================
-// SECTION 3: GEOMETRIC UTILITIES - Angles and Normals
-//==============================================================================
+class DistFuncs
+{
+    public:
+        static double inverseDist(VertexCstIt v, VertexCstIt neighbor) {
+            double d2 = CGAL::to_double(CGAL::squared_distance(v->point(), neighbor->point()));
+            if (d2 < 1e-12) return 0.0;  
+            double w = 1.0 / std::sqrt(d2);
+            return std::min(w, 100.0); 
+        }
 
-/**
- * @brief Compute angle in degrees between two 3D vectors.
- * @param vec First vector
- * @param axis Second vector (reference axis)
- * @return Angle in degrees [0, 180]
- */
-double angle_degrees(const CGAL::Vector_3<Kernel>& vec, 
-                     const CGAL::Vector_3<Kernel>& axis);
+        static double uniforme(VertexCstIt v, VertexCstIt neighbor)
+        {
+            return 1.0;
+        }
 
-/**
- * @brief Compute angle between triangle normal and reference vector.
- * @param p First triangle vertex
- * @param q Second triangle vertex
- * @param r Third triangle vertex
- * @param reference_vector Axis to measure angle against
- * @return Angle in degrees
- */
-double get_normal_angle(const CGAL::Point_3<Kernel> & p,
-                        const CGAL::Point_3<Kernel> & q,
-                        const CGAL::Point_3<Kernel> & r,
-                        const CGAL::Vector_3<Kernel> & reference_vector);
+        static double cotangentes(VertexCstIt v, VertexCstIt neighbor)
+        {
+            using SCD    = CGAL::Simple_cartesian<double>;
+            using Pt3d   = SCD::Point_3;
+            using Vec3d  = CGAL::Vector_3<SCD>;
 
-/**
- * @brief Compute normal vector of a triangle.
- * @param p First triangle vertex
- * @param q Second triangle vertex
- * @param r Third triangle vertex
- * @return Unit normal vector
- */
-const CGAL::Vector_3<Kernel> get_normal_vector(const CGAL::Point_3<Kernel> & p,
-                                                const CGAL::Point_3<Kernel> & q,
-                                                const CGAL::Point_3<Kernel> & r);
+            auto toPt = [](auto p) -> Pt3d {
+                return Pt3d(CGAL::to_double(p.x()), CGAL::to_double(p.y()), CGAL::to_double(p.z()));
+            };
 
-/**
- * @brief Compute angles between face normal and cardinal axes (X, Y, Z).
- * @param i Face iterator
- * @return Array of three angles [angle_X, angle_Y, angle_Z] in degrees
- */
-std::array<double, 3> get_facet_normals_angle(const FacetCstIt &i);
+            auto circ     = v->vertex_begin();
+            auto end_circ = circ;
+            Mesh::Halfedge_const_handle h_edge;
+            bool found = false;
 
-/**
- * @brief Extract normal vector of a triangular face.
- * @param i Face iterator
- * @return Face normal vector
- */
-CGAL::Vector_3<Kernel> get_facet_normals_vector(const FacetCstIt &i);
+            do {
+                if (circ->opposite()->vertex() == neighbor) {
+                    h_edge = &*circ;         
+                    found = true;
+                    break;
+                }
+                ++circ;
+            } while (circ != end_circ);
 
-//==============================================================================
-// SECTION 4: AREA COMPUTATION
-//==============================================================================
+            if (!found || h_edge->is_border() || h_edge->opposite()->is_border())
+                return 0.0;
 
-/**
- * @brief Compute area of a triangular face using CGAL primitives.
- * @param i Face iterator (must point to a triangle)
- * @return Face area in mesh units squared
- */
-double compute_area_triangle(FacetCstIt &i);
+            Pt3d pv  = toPt(v->point());
+            Pt3d pn  = toPt(neighbor->point());
 
-/**
- * @brief Compute area of a quadrilateral face by triangulation.
- * @param i Face iterator (must point to a quad)
- * @return Face area (sum of two triangles)
- * @note Assumes convex quad; splits along diagonal p0-p2
- */
-double compute_area_quad(FacetCstIt &i);
 
-/**
- * @brief Compute total area of a purely triangular mesh.
- * @param mesh Input mesh (assumes all faces are triangles)
- * @return Total mesh surface area
- */
-double compute_Area(const Mesh &mesh);
+            Pt3d palpha = toPt(h_edge->next()->vertex()->point());
 
-/**
- * @brief Compute total area of a mesh with mixed triangle/quad faces.
- * @param mesh Input mesh
- * @return Total mesh surface area
- */
-double compute_Area_Quad_Mesh(const Mesh &mesh);
 
-/**
- * @brief Build map associating each face with its area.
- * @param mesh Input mesh (triangle/quad faces supported)
- * @return Map: face_handle -> area
- */
-std::map<Mesh::Facet_const_handle, double> compute_Area_Map(const Mesh &mesh);
+            Pt3d pbeta  = toPt(h_edge->opposite()->next()->vertex()->point());
 
-//==============================================================================
-// SECTION 5: MESH PROPERTIES
-//==============================================================================
+            auto cotan = [](Pt3d& apex, Pt3d& a, Pt3d& b) -> double {
+                Vec3d u(apex, a), w(apex, b);
+                double dot   = CGAL::scalar_product(u, w);
+                double norme = std::sqrt(CGAL::cross_product(u, w).squared_length());
+                return (norme < 1e-10) ? 0.0 : dot / norme;
+            };
 
-/**
- * @brief Compute genus of a closed mesh using Euler characteristic.
- * @param mesh Input mesh (must be closed, single-component)
- * @return Genus g, where χ = V - E + F = 2 - 2g
- * @note Prints vertex/edge/face counts to stdout for verification
- */
-int computeGenus(const Mesh &mesh);
+            return 0.5 * (cotan(palpha, pv, pn) + cotan(pbeta, pv, pn));
+        }
 
-/**
- * @brief Colorize mesh by dominant normal component and export normal map.
- * @param mesh Input mesh
- * @param file_name Output colored OFF file path
- * @return Map: face_handle -> normal_vector (for further processing)
- * @note Produces visual representation of face orientation
- */
-std::map<Mesh::Facet_const_handle, CGAL::Vector_3<Kernel>> 
-colorize_by_greatest_normal(const Mesh &mesh, std::string file_name);
+};
 
-//==============================================================================
-// SECTION 6: DISTANCE COMPUTATION
-//==============================================================================
 
-/**
- * @brief Compute Euclidean distance from face centroid to reference point.
- * @param mesh Parent mesh
- * @param i Face iterator
- * @param p Reference point (e.g., robot position)
- * @return Array {dx, dy, dz, d_total} where d_total = sqrt(dx²+dy²+dz²)
- * @note Returns signed component distances for axis-specific analysis
- */
-std::array<double, 4> compute_distance_face_point(const Mesh &mesh, 
-                                                   const FacetCstIt &i, 
-                                                   const geomAlgoLib::Point_3 &p);
+} 
 
-//==============================================================================
-// SECTION 7: SEGMENTATION
-//==============================================================================
 
-/**
- * @brief Segment mesh faces based on geometric criteria.
- * 
- * Assigns multiple boolean tags to each face:
- *  - Grande: area > 5.0
- *  - OrienteHaut: normal dominated by Z component
- *  - Plane: angle with vertical < 15° (horizontal surface)
- *  - VerySteep: angle with vertical > 30° (steep/vertical surface)
- *  - ZoneMarche: plane surface (walkable for robot)
- *  - Obstacle: steep surface with non-negligible area
- *  - ZoneAPortee: plane surface within horizontal reach and height tolerance
- * 
- * @param areas Map of face -> area
- * @param normal_angles Map of face -> normal vector
- * @param mesh Parent mesh (for distance computations)
- * @param reference_point Robot/avatar position for reachability analysis
- * @return Map: face_handle -> TagMaps (tags + associated colors)
- */
-std::map<Mesh::Facet_const_handle, TagMaps> segmentationMap(
-    std::map<Mesh::Facet_const_handle, double> areas,
-    std::map<Mesh::Facet_const_handle, CGAL::Vector_3<Kernel>> normal_angles,
-    const Mesh &mesh,
-    const geomAlgoLib::Point_3 &reference_point
-);
-
-//==============================================================================
-// SECTION 8: I/O - Export Functions
-//==============================================================================
-
-/**
- * @brief Export single face with RGB color (utility function).
- * @param mesh Parent mesh
- * @param F Face handle
- * @param color RGB array [0,1] range
- * @param file_name Output COFF file path
- */
-void save_Face_Color(const Mesh &mesh, 
-                     Mesh::Facet_const_handle F, 
-                     std::array<double, 3> color, 
-                     std::string file_name);
-
-/**
- * @brief Export mesh with per-face RGB colors (array format).
- * @param mesh Input mesh
- * @param m Map: face_handle -> RGB array
- * @param file_name Output COFF file path
- */
-void save_Mesh_Color(const Mesh &mesh,
-                     std::map<Mesh::Facet_const_handle, std::array<double, 3>> m,
-                     std::string file_name);
-
-/**
- * @brief Export mesh with normalized scalar-to-grayscale mapping.
- * @param mesh Input mesh
- * @param m Map: face_handle -> scalar value
- * @param file_name Output COFF file path
- * @note Normalizes values to [0,1] then maps to grayscale: white=min, black=max
- */
-void save_Mesh_Color(const Mesh &mesh,
-                     std::map<Mesh::Facet_const_handle, double> m,
-                     std::string file_name);
-
-//==============================================================================
-// SECTION 9: HIGH-LEVEL PIPELINE
-//==============================================================================
-
-/**
- * @brief Complete segmentation pipeline for a single tag visualization.
- * 
- * Workflow:
- *  1. Compute area map
- *  2. Compute normal map
- *  3. Run segmentation (assign all tags)
- *  4. Extract color for requested tag
- *  5. Export colored COFF file
- * 
- * @param Tag Tag name to visualize ("Plane", "Obstacle", "ZoneAPortee", etc.)
- * @param mesh Input mesh
- * @param file_name Output COFF file path
- * @param reference_point Robot position for ZoneAPortee computation
- */
-void ColorizedTag(std::string Tag,
-                  const Mesh &mesh,
-                  std::string file_name,
-                  const geomAlgoLib::Point_3 &reference_point);
-
-//==============================================================================
-// SECTION 10: VISUALIZATION UTILITIES
-//==============================================================================
-
-/**
- * @brief Generate cube marker for robot position visualization.
- * @param robot_pos 3D position of robot/avatar
- * @param file_name Output COFF file (red cube)
- * @param size Cube edge length in mesh units
- * @note Load this marker alongside mesh in MeshLab for visual reference
- */
-void save_robot_marker(const geomAlgoLib::Point_3 &robot_pos,
-                       std::string file_name,
-                       double size);
-
-//==============================================================================
-// SECTION 11: DEBUG UTILITIES
-//==============================================================================
-
-/**
- * @brief Print map contents to stdout (debugging helper).
- * @param comment Prefix label for output
- * @param m Map to display
- */
-void print_map(std::string_view comment, 
-               std::map<geomAlgoLib::Mesh::Facet_const_handle, double>& m);
-
-} // namespace geomAlgoLib
+std::vector<std::string> split(std::string s, std::string delimiter);
